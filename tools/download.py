@@ -6,6 +6,7 @@ from urllib.request import urlretrieve
 import time
 import random
 import os
+import argparse
 
 
 class CAPTCHA(object):
@@ -22,15 +23,19 @@ class CAPTCHA(object):
         return captcha
 
 
-    def generate_list(self, dir, name="captcha_train"):
-        image_files = os.listdir(dir)
+    def generate_list(self, img_dir, lst_name="captcha_train"):
+        '''
+
+        '''
+        image_files = os.listdir(img_dir)
         nums = len(image_files)
-        filename = "".join([dir,'/',name,'_list.lst'])
+        filename = "".join([lst_name,'_list.lst'])
         with open(filename, 'w') as f:
             for i in range(nums):
                 iterm = image_files[i]
                 label = iterm.split('.')[0]
-                f.write("{:d}\t{}\t{}\n".format(i, label, iterm))
+                label_list = list(map(self.char_set.index, label))
+                f.write("{:d}\t{:d}\t{:d}\t{:d}\t{:d}\t{}\n".format(i,label_list[0],label_list[1],label_list[2],label_list[3],iterm))
 
 
     def download_captcha(self, dir='./datasets', num=5000):
@@ -49,9 +54,21 @@ class CAPTCHA(object):
 
 
 if __name__ == '__main__':
-    img_dir = './datasets/images/'
+    img_dir = './datasets/images'
+    train_dir = ''.join([img_dir,'/train'])
+    test_dir = ''.join([img_dir,'/test'])
+    train_ratio = 0.8
+    test_ratio = 0.2
+    num = 20000
+
+    num_train = int(round(num*train_ratio))
+    num_test = int(round(num*test_ratio))
+
     cap = CAPTCHA()
-    cap.download_captcha(dir=img_dir, num=20000)
+    cap.download_captcha(dir=train_dir, num=num_train)
+    cap.download_captcha(dir=test_dir, num=num_test)
+    cap.generate_list(img_dir=train_dir,lst_name=img_dir+'/../train')
+    cap.generate_list(img_dir=test_dir,lst_name=img_dir+'/../test')
 
 
 
