@@ -59,7 +59,7 @@ if __name__ == '__main__':
     test_dir = ''.join([img_dir,'/test'])
     train_ratio = 0.8
     test_ratio = 0.2
-    num = 20000
+    num = 30000
 
     num_train = int(round(num*train_ratio))
     num_test = int(round(num*test_ratio))

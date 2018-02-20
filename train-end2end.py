@@ -6,9 +6,10 @@
 import mxnet as mx
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 
 
-batch_size = 64
+batch_size = 90
 
 
 
@@ -26,7 +27,7 @@ conv2 = mx.sym.Convolution(pool1, num_filter=64, kernel=(3,3), stride=(1,1), pad
 relu2 = mx.sym.Activation(conv2, act_type='relu', name='relu2')
 pool2 = mx.sym.Pooling(relu2, kernel=(2,2),stride=(2,2), pad=(1,0), pool_type='max', name='pool2')
 # 64x8x25
-conv3 = mx.sym.Convolution(pool2, num_filter=128, kernel=(3,3), stride=(1,1), pad=(1,1), no_bias=False, name='conv3')
+conv3 = mx.sym.Convolution(pool2, num_filter=64, kernel=(3,3), stride=(1,1), pad=(1,1), no_bias=False, name='conv3')
 relu3 = mx.sym.Activation(conv3, act_type='relu', name='relu3')
 pool3 = mx.sym.Pooling(relu3, kernel=(2,2),stride=(2,2), pad=(0,1), pool_type='max', name='pool3')
 # 128x4x13
@@ -54,12 +55,17 @@ out = mx.sym.Group([loss, score_pred])
 
 ## module
 #  print(train_iter.provide_data)
+#  lr_scheduler = mx.lr_scheduler.FactorScheduler(step=500,factor=0.8,stop_factor_lr=1e-6)
+lr_scheduler = mx.lr_scheduler.FactorScheduler(step=500,factor=0.8,stop_factor_lr=1e-6)
 mod = mx.mod.Module(out, context=mx.gpu(),data_names=['img'],label_names=['label'])
 mod.bind(data_shapes=[('img',(batch_size,3,30,100))], label_shapes=[('label',(batch_size,4))])
 mod.init_params(mx.init.Xavier())
 mod.init_optimizer(
     optimizer='adam',
-    optimizer_params=(('learning_rate',5e-4),('beta1',0.9),('wd',5e-4))
+    optimizer_params=(('learning_rate',1e-3),
+                      ('beta1',0.9),
+                      ('wd',5e-4),
+                      ('lr_scheduler', lr_scheduler))
     )
 
 
@@ -67,32 +73,32 @@ mod.init_optimizer(
 # the datasets is shuffled after each reset(), thus after each reset() the data
 # in each batch should be different though given the same seed, the behavior of
 # the program at each iter and epoch should be the same
-train_iter = mx.io.ImageRecordIter(
-    path_imgrec='./datasets/train_list.rec',
-    data_shape=(3,30,100),
-    label_width=4,
-    shuffle=True,
-    #  seed = 0,
-    batch_size=batch_size
-)
+# TODO: wrap the iterator with a function so as to shuffle the dataset given
+# seed
+def get_train_iter(data_record, shape, label_width):
+    '''
+    A wrapper of the ImageRecordIter, to assign the seed randomly
+    '''
+    seed = random.randint(0, 5000)
+    return mx.io.ImageRecordIter(
+        path_imgrec='./datasets/train_list.rec',
+        data_shape=(3,30,100),
+        label_width=4,
+        shuffle=True,
+        seed = seed,
+        batch_size=batch_size
+    )
 
+seed = random.randint(0, 5000)
 test_iter = mx.io.ImageRecordIter(
     path_imgrec='./datasets/test_list.rec',
     data_shape=(3,30,100),
     label_width=4,
     shuffle=True,
-    #  seed = 0,
-    batch_size=4*batch_size
+    seed = seed,
+    batch_size=8*batch_size
 )
 
-#  train_iter.reset()
-#  batch = train_iter.next()
-
-#  print(dir(train_iter))
-
-#  print(mx.nd.one_hot(batch.label[0],36))
-#  print(batch)
-#
 
 
 ## accuracy
@@ -147,10 +153,11 @@ def draw_acc(acc, fig_num):
 
 
 ## training
-epoch = 10
+epoch = 80
 train_loss_list = []
 test_acc_list = []
 end_epoch = False
+train_iter = get_train_iter('./datasets/train_list.rec',(3,30,100),4)
 for e in range(epoch):
     train_iter.reset()
     i = 0
@@ -164,7 +171,6 @@ for e in range(epoch):
         train_loss = output[0].asnumpy()
         train_loss_list.append(train_loss[0])
 
-        # TODO: add learning rate decay
         # keep track of validation accuracy
         if i % 10 == 0:
             test_iter.reset()
@@ -186,7 +192,8 @@ for e in range(epoch):
             #  print("epoch: {} iter: {} train_loss: {} train_acc: {}".format(e,i,train_loss[-1],train_acc))
             print("epoch: {} iter: {} train_loss: {}".format(e,i,train_loss[-1]))
 
-    print("epoch: {} validation_loss: {} validation_acc: {}".format(e,test_loss,test_acc_list[-1]))
+    print("epoch: {} validation_loss: {} validation_acc: {:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}"\
+          .format(e,test_loss,test_acc_list[-1][0],test_acc_list[-1][1],test_acc_list[-1][2],test_acc_list[-1][3],test_acc_list[-1][4]))
     if(end_epoch == True):
         break
 
