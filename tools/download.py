@@ -6,7 +6,6 @@ from urllib.request import urlretrieve
 import time
 import random
 import os
-import argparse
 
 
 class CAPTCHA(object):

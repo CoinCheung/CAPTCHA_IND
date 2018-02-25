@@ -2,4 +2,4 @@
 # filename: setup.sh
 
 
-python -m pip install --user multiprocess xlwt -i https://mirrors.aliyun.com/pypi/simple
+python -m pip install --user multiprocess xlwt numpy mxnet-cu90 matplotlib -i https://mirrors.aliyun.com/pypi/simple
