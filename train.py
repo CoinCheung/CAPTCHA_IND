@@ -15,15 +15,29 @@ import core.visualize as visualize
 
 
 def train_model(batch_size, epoch, verbose):
+    '''
+    Train the model some epoches, implement cross validation and draw the loss
+    and validation accuracy in the training process. After training, the model
+    and its parameters will be exported to the directory model_export
+    params:
+        batch_size: batch_size
+        epoch: max number of epoch to train
+        verbose: whether print the training loss and validation accuracy and
+                draw their curves
+    return:
+        if validation accuracy reaches over 90% before epoch runs out, return
+        the final validation accuracy list of [acc0, acc1, acc2, acc3, acc4]
+        which stands for the accuracy of 0-4 characters successfully predicted
+    '''
 
-    mod = module.get_module()
+    mod = module.get_train_module()
 
     ## training
     train_loss_list = []
     test_acc_list = []
     end_epoch = False
     train_iter = io.get_record_iter('./datasets/train_list.rec',(3,30,100),4,batch_size)
-    test_iter = io.get_record_iter('./datasets/test_list.rec',(3,30,100),4,batch_size*8)
+    test_iter = io.get_record_iter('./datasets/test_list.rec',(3,30,100),4,batch_size)
     for e in range(epoch):
         train_iter.reset()
         i = 0
@@ -39,13 +53,11 @@ def train_model(batch_size, epoch, verbose):
 
             # keep track of validation accuracy each 10 iters
             if i % 10 == 0:
-                test_iter.reset()
-                test_batch = test_iter.next()
-                mod.forward(test_batch)
-                test_output = mod.get_outputs()
-                test_loss = test_output[0].asnumpy()
-                test_scores = test_output[1].asnumpy()
-                test_acc = meric.accuracy(test_scores, test_batch.label[0].asnumpy())
+                valid = mod.predict(test_iter, 16, always_output_list=True)
+                test_loss = np.mean(valid[0].asnumpy())
+                test_score = valid[1].asnumpy()
+                label = valid[2].asnumpy()
+                test_acc = meric.accuracy(label, test_score)
                 test_acc_list.append(test_acc)
                 if test_acc[-1] > 0.9:
                     print("accuracy {}, better than 90% at epoch {} iter {}".format(test_acc[-1],e,i))
@@ -63,10 +75,6 @@ def train_model(batch_size, epoch, verbose):
         if(end_epoch == True):
             break
 
-    # average accuracy
-    acc_chunk = np.array(test_acc_list[-20:])
-    acc_chunk_avg = np.mean(acc_chunk, axis=0)
-
     # save model and parameters
     mod.save_checkpoint("./model_export/lenet5", epoch, True)
 
@@ -75,7 +83,14 @@ def train_model(batch_size, epoch, verbose):
         visualize.draw_loss(train_loss_list, 1)
         visualize.draw_acc(test_acc_list, 2)
 
-    return acc_chunk_avg
+    if end_epoch == True:
+        return test_acc
+    else:
+        # average accuracy
+        acc_chunk = np.array(test_acc_list[-20:])
+        acc_chunk_avg = np.mean(acc_chunk, axis=0)
+
+        return acc_chunk_avg
 
 
 if __name__ == '__main__':

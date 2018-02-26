@@ -9,58 +9,32 @@ import random
 import os
 import symbol.symbol as symbol
 import core.config as config
+import core.meric as meric
+import core.io as io
 
-
-
-## data iterator
-# the datasets is shuffled after each reset(), thus after each reset() the data
-# in each batch should be different though given the same seed, the behavior of
-# the program at each iter and epoch should be the same
-def get_train_iter():
-    '''
-    A wrapper of the ImageRecordIter, to assign the seed randomly
-    '''
-    seed = random.randint(0, 5000)
-    return mx.io.ImageRecordIter(
-        path_imgrec='./datasets/train_list.rec',
-        data_shape=(3,30,100),
-        label_width=4,
-        shuffle=True,
-        seed = seed,
-        batch_size=batch_size
-    )
-
-
-
-def get_test_iter():
-    seed = random.randint(0, 5000)
-    return mx.io.ImageRecordIter(
-        path_imgrec='./datasets/test_list.rec',
-        data_shape=(3,30,100),
-        label_width=4,
-        shuffle=True,
-        seed = seed,
-        batch_size=8*batch_size
-    )
-
-
-
-## accuracy
-def accuracy(scores, label_real):
-    label_pred = np.argmax(scores, axis=2)
-    same = np.sum(label_pred == label_real, axis=1)
-    #  print(label_pred == label_real)
-    acc0 = np.sum(same==0)/same.size
-    acc1 = np.sum(same==1)/same.size
-    acc2 = np.sum(same==2)/same.size
-    acc3 = np.sum(same==3)/same.size
-    acc4 = np.sum(same==4)/same.size
-    return [acc0, acc1, acc2, acc3, acc4]
 
 
 
 # get hyper parameters
 def get_params(lr_arr, lr_sch_arr, wd_arr, hypers):
+    '''
+    This method returns a tuple containing hyper-parameters randomly chosen
+    from the given lists of their scope.
+    params:
+        lr_arr: a tuple or list or any structure that can be randomly choiced,
+                indicating the scope from which learning rate is chosen
+        lr_sch_arr: same structure as lr_arr, but indicates the ratio by which
+                    the learning rate will be multiplied each 500 iters
+        wd_arr: same structure as lr_arr, but suggesting the weight decay ratio
+                which has the same effect as L2 regularization for anti-overfitting
+        hypers: tuple or list or set of tuples which contain the hyper-parameters
+                that have been assigned to the model for random search. Any tried
+                hyper-parameters will be tupled and add to this structure to
+                avoid duplicated search
+    return:
+        a tuple of the randomly chosen hyper parameter of learning rate,
+        learning rate factor and weight decay ratio
+    '''
     lr = random.choice(lr_arr)
     lr_sch = random.choice(lr_sch_arr)
     wd = random.choice(wd_arr)
@@ -75,7 +49,17 @@ def get_params(lr_arr, lr_sch_arr, wd_arr, hypers):
     return tp
 
 
-def tune_hyperparameters(batch_size, epoch, is_test, lr, lr_factor, wd):
+def tune_hyperparameters(batch_size, epoch, lr, lr_factor, wd):
+    '''
+    This method receives some hyper parameters and train the model with them to
+    valid the accuracy of the model under these hyper parameters.
+    params:
+        batch_size: batch_size
+        epoch: epoch
+        lr: the initial learning rate used to train the model
+        lr_factor: the current learning rate factor used in the training process
+        wd: the current weight decay ratio used in this training process
+    '''
     # get network symbol
     out = symbol.lenet5_symbol()
 
@@ -94,12 +78,10 @@ def tune_hyperparameters(batch_size, epoch, is_test, lr, lr_factor, wd):
 
 
     ## training
-    train_loss_list = []
+    train_iter = io.get_record_iter('./datasets/train_list.rec',(3,30,100),4,batch_size)
+    test_iter = io.get_record_iter('./datasets/test_list.rec',(3,30,100),4,batch_size)
     test_acc_list = []
-    end_epoch = False
     track_epoch = max(0, epoch - 10)
-    train_iter = get_train_iter()
-    test_iter = get_test_iter()
     for e in range(epoch):
         train_iter.reset()
         i = 0
@@ -108,33 +90,28 @@ def tune_hyperparameters(batch_size, epoch, is_test, lr, lr_factor, wd):
             mod.backward()
             mod.update()
 
-            # keep track of training loss
+            # synchronize
             output = mod.get_outputs()
             train_loss = output[0].asnumpy()
-            #  train_loss_list.append(train_loss[0])
 
             # keep track of validation accuracy
             if (e > track_epoch) and (i % 10 == 0):
-                test_iter.reset()
-                test_batch = test_iter.next()
-                mod.forward(test_batch)
-                test_output = mod.get_outputs()
-                test_scores = test_output[1].asnumpy()
-                test_acc = accuracy(test_scores, test_batch.label[0].asnumpy())
+                valid = mod.predict(test_iter, 16, always_output_list=True)
+
+                test_score = valid[1].asnumpy()
+                label = valid[2].asnumpy()
+                test_acc = meric.accuracy(label, test_score)
                 test_acc_list.append(test_acc)
-                if test_acc[-1] > 0.9:
-                    print("accuracy {}, better than 85% at epoch {} iter {}".format(test_acc[-1],e,i))
-                    end_epoch = True
-                    break
             i += 1
 
-        if(end_epoch == True):
-            break
+        if e % 20 == 0:
+            print("epoch {}".format(e))
+
 
     # average accuracy
     acc_chunk = np.array(test_acc_list[-20:])
     acc_chunk_avg = np.mean(acc_chunk, axis=0)
-    print("average validation accuracy is: [{:.4f}, {:.4f}, {:.4f}, {:.4f}]".format(acc_chunk_avg[0],acc_chunk_avg[1],acc_chunk_avg[2],acc_chunk_avg[3]))
+    print("average validation accuracy is: [{:.4f}, {:.4f}, {:.4f}, {:.4f}, {:.4f}]".format(acc_chunk_avg[0],acc_chunk_avg[1],acc_chunk_avg[2],acc_chunk_avg[3],acc_chunk_avg[4]))
 
     return acc_chunk_avg
 
@@ -145,7 +122,7 @@ if __name__ == '__main__':
     epoch = config.epoch
     wd_arr = tuple([n*2e-7 for n in range(1,5001)])
     lr_arr = tuple([n*1e-4 for n in range(1,101)])
-    lr_factor_arr = tuple([n*0.05+0.6 for n in range(9)])
+    lr_factor_arr = tuple([n*0.05+0.2 for n in range(16)])
 
 
     # create log file and write headers if no existing log file
@@ -165,13 +142,13 @@ if __name__ == '__main__':
 
     # try new hypers and write results
     with open(logname, 'a+') as w:
-        for i in range(35):
-            print(i)
+        for i in range(20):
+            print('round {}:'.format(i))
             lr,lr_factor,wd = get_params(lr_arr, lr_factor_arr, wd_arr, hypers)
             tp = (lr,lr_factor,wd)
             hypers.add(tp)
 
-            acc = tune_hyperparameters(batch_size, epoch, False, lr, lr_factor, wd)
+            acc = tune_hyperparameters(batch_size, epoch, lr, lr_factor, wd)
 
             print('lr: {:.6f}, lr_facot: {:.2f}, wd: {:.8f}'.format(lr, lr_factor, wd))
             params = '{}, \t {}, \t {}, \t|\t {:.5f}, \t|\t {:.5f}, \t|\t {:.5f}, \t|\t {:.5f}, \t|\t {:.5f}\n'.format(lr,lr_factor,wd,acc[0],acc[1],acc[2],acc[3],acc[4])

@@ -1,8 +1,0 @@
-1. reconstruct -- done
-2. add explainations
-3. see if IO can be optimized (use as_in_context) -- done
-4. add save result model and params -- done
-5. refactoring the random_search.py code and remove irelevant codes -- done
-6. add test.py
-7. run train.py once more to see if the change still work -- done
-8. replace validation forward with predict and see if gpu memory will be saved

@@ -3,14 +3,14 @@
 
 
 
-batch_size = 80
+batch_size = 128
 epoch = 80
-is_test = False
 verbose = True
 
 learning_rate = 1e-3
-lr_factor = 0.8
-weight_decay = 5e-4
+lr_factor = 0.5
+
+weight_decay = 1e-5
 
 
 

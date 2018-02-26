@@ -7,8 +7,11 @@ import symbol.symbol as symbol
 import core.config as config
 
 
-def get_module():
-
+def get_train_module():
+    '''
+    This method defines and initialize a module for training the network, and
+    then return it
+    '''
     # parameters
     lr = config.learning_rate
     lr_factor = config.lr_factor
@@ -30,6 +33,27 @@ def get_module():
                         ('wd',wd),
                         ('lr_scheduler', lr_scheduler))
         )
+
+    return mod
+
+def get_test_module():
+    '''
+    This method defines a module and load the pre-trained symbol and parameters
+    and return it for test
+    '''
+    batch_size = config.batch_size
+    # load pre-trained module
+    mod = mx.mod.Module.load(
+        prefix='./model_export/lenet5',
+        epoch=config.epoch,
+        data_names=['img'],
+        label_names=['label'],
+        context=mx.gpu()
+    )
+    mod.bind(
+        data_shapes=[('img',(batch_size,3,30,100))],
+        label_shapes=[('label',(batch_size,4))]
+    )
 
     return mod
 

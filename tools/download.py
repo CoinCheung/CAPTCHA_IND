@@ -9,6 +9,10 @@ import os
 
 
 class CAPTCHA(object):
+    '''
+    This is the class designed to download CAPTCHA pictures and generate .lst file according to
+    the downloaded pictures.
+    '''
     def __init__(self):
         self.url = 'http://cuijiahua.com/tutrial/discuz/index.php?label='
         self.num_set = ['0','1','2','3','4','5','6','7','8','9']
@@ -17,6 +21,13 @@ class CAPTCHA(object):
 
 
     def random_captcha(self, captcha_size=4):
+        '''
+        generate captcha label string with a given length. The string is required by captcha pictures
+        params:
+            captcha_size: length of the captcha string
+        return:
+            a string indicating the content of the captcha
+        '''
         captcha_set = [random.choice(self.char_set) for i in range(captcha_size)]
         captcha = ''.join(captcha_set)
         return captcha
@@ -24,7 +35,10 @@ class CAPTCHA(object):
 
     def generate_list(self, img_dir, lst_name="captcha_train"):
         '''
-
+        generate the .lst file which is required by im2rec.py to generate record file
+        params:
+            img_dir: directory where the images are stored
+            lst_name: path and name of the generated lst file
         '''
         image_files = os.listdir(img_dir)
         nums = len(image_files)
@@ -38,6 +52,12 @@ class CAPTCHA(object):
 
 
     def download_captcha(self, dir='./datasets', num=5000):
+        '''
+        download the captcha pictures to assigned directory
+        params:
+            dir: directory to which the cpatcha pictures are stored
+            num: number of captcha pictures to be downloaded
+        '''
         if not os.path.exists(dir):
             os.makedirs(dir)
 
